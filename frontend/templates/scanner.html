@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <div class="bg-white dark:bg-darkCard rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+        <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Smart File Scanner</h2>
+        <p class="text-gray-500 dark:text-gray-400 mb-6">Enter a directory path to scan for files, extract metadata, and prepare for organization.</p>
+
+        <form id="scanForm" class="space-y-4">
+            <div>
+                <label for="directoryPath" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Directory Path</label>
+                <div class="flex space-x-3">
+                    <input type="text" id="directoryPath" name="directoryPath" required 
+                        class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-gray-50 dark:bg-gray-800 dark:text-white transition-colors"
+                        placeholder="e.g., C:\Users\Username\Downloads">
+                    <button type="submit" id="startScanBtn"
+                        class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-colors flex items-center space-x-2">
+                        <i class="fas fa-search"></i>
+                        <span>Start Scan</span>
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Loading State -->
+        <div id="scanProgress" class="hidden mt-8">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Scanning in progress...</span>
+                <span class="text-sm text-indigo-600 dark:text-indigo-400 animate-pulse">Processing...</span>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                <div class="bg-indigo-600 h-2.5 rounded-full w-full animate-[progress_2s_ease-in-out_infinite]" style="transform-origin: left;"></div>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">This may take a few moments depending on the directory size.</p>
+        </div>
+
+        <!-- Results State -->
+        <div id="scanResults" class="hidden mt-8 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+            <div class="flex items-start mb-4">
+                <i class="fas fa-check-circle text-green-500 mt-1 mr-3 text-xl"></i>
+                <div>
+                    <h3 class="text-lg font-semibold text-green-800 dark:text-green-400">Scan Complete</h3>
+                    <p class="text-green-600 dark:text-green-500" id="scanSummaryText"></p>
+                </div>
+            </div>
+            <div class="flex space-x-4 mt-2">
+                <a href="/organizer" class="px-4 py-2 bg-white dark:bg-gray-800 text-green-700 dark:text-green-400 rounded border border-green-200 dark:border-green-700 text-sm font-medium hover:bg-green-100 dark:hover:bg-gray-700 transition">Go to Organizer</a>
+                <a href="/dashboard" class="px-4 py-2 bg-transparent text-green-700 dark:text-green-400 rounded text-sm font-medium hover:underline transition">View Dashboard</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scan History -->
+    <div class="bg-white dark:bg-darkCard rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Recent Scans</h3>
+            <button onclick="loadScanHistory()" class="text-gray-500 hover:text-indigo-600 transition-colors">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700/50 dark:text-gray-300">
+                    <tr>
+                        <th scope="col" class="px-6 py-3">Directory</th>
+                        <th scope="col" class="px-6 py-3">Files Found</th>
+                        <th scope="col" class="px-6 py-3">Total Size</th>
+                        <th scope="col" class="px-6 py-3">Status</th>
+                        <th scope="col" class="px-6 py-3">Date</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                    <!-- Loaded via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes progress {
+    0% { transform: scaleX(0); }
+    50% { transform: scaleX(1); }
+    100% { transform: scaleX(0); }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('pageTitle').textContent = 'Smart Scanner';
+        loadScanHistory();
+    });
+
+    document.getElementById('scanForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const dirPath = document.getElementById('directoryPath').value;
+        if (!dirPath) return;
+
+        const btn = document.getElementById('startScanBtn');
+        const progress = document.getElementById('scanProgress');
+        const results = document.getElementById('scanResults');
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Scanning</span>';
+        progress.classList.remove('hidden');
+        results.classList.add('hidden');
+
+        try {
+            const res = await api.post('/scan/start', { directory_path: dirPath });
+            
+            progress.classList.add('hidden');
+            results.classList.remove('hidden');
+            
+            document.getElementById('scanSummaryText').textContent = 
+                `Successfully indexed ${res.files_found} files (${ui.formatBytes(res.total_size)}).`;
+                
+            ui.showToast('Scan completed successfully', 'success');
+            loadScanHistory();
+        } catch (error) {
+            progress.classList.add('hidden');
+            ui.showToast(error.message || 'Scan failed', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-search"></i><span>Start Scan</span>';
+        }
+    });
+
+    async function loadScanHistory() {
+        try {
+            const history = await api.get('/scan/history');
+            const tbody = document.getElementById('historyTableBody');
+            
+            if (history.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center">No recent scans found.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = history.map(h => `
+                <tr class="bg-white dark:bg-darkCard border-b dark:border-gray-700">
+                    <td class="px-6 py-4 font-medium text-gray-900 dark:text-white truncate max-w-xs" title="${h.path_scanned}">${h.path_scanned}</td>
+                    <td class="px-6 py-4">${h.files_found}</td>
+                    <td class="px-6 py-4">${ui.formatBytes(h.total_size)}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 rounded text-xs font-medium ${
+                            h.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                            h.status === 'failed' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                            'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                        }">${h.status}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">${ui.formatDate(h.start_time)}</td>
+                </tr>
+            `).join('');
+        } catch (error) {
+            console.error('Failed to load history', error);
+        }
+    }
+</script>
+{% endblock %}

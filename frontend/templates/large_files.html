@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="bg-white dark:bg-darkCard rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Large Files Analyzer</h2>
+            <p class="text-gray-500 dark:text-gray-400 text-sm mt-1">Identify massive files consuming your storage space.</p>
+        </div>
+        <div class="flex items-center space-x-3">
+            <label class="text-sm text-gray-600 dark:text-gray-400">Min Size (MB):</label>
+            <input type="number" id="minSize" value="100" class="w-20 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-sm dark:text-white">
+            <button onclick="loadLargeFiles()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm transition font-medium">Filter</button>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400" id="largeFilesTable">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700/50 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
+                <tr>
+                    <th scope="col" class="px-6 py-3">Filename</th>
+                    <th scope="col" class="px-6 py-3">Path</th>
+                    <th scope="col" class="px-6 py-3">Size</th>
+                    <th scope="col" class="px-6 py-3">Category</th>
+                    <!-- Optional: Add delete action here -->
+                </tr>
+            </thead>
+            <tbody id="largeFilesBody">
+                <!-- Loaded via JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('pageTitle').textContent = 'Large Files';
+        loadLargeFiles();
+    });
+
+    async function loadLargeFiles() {
+        const minSize = document.getElementById('minSize').value || 100;
+        const tbody = document.getElementById('largeFilesBody');
+        
+        tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center"><i class="fas fa-spinner fa-spin mr-2"></i>Loading...</td></tr>`;
+
+        try {
+            const files = await api.get(`/stats/large-files?min_size_mb=${minSize}`);
+            
+            if (files.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-10 text-center text-gray-500">No files found exceeding ${minSize} MB.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = files.map(f => `
+                <tr class="bg-white dark:bg-darkCard border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                    <td class="px-6 py-4 font-medium text-gray-900 dark:text-white truncate max-w-[200px]" title="${f.filename}">${f.filename}</td>
+                    <td class="px-6 py-4 truncate max-w-xs" title="${f.current_path}">${f.current_path}</td>
+                    <td class="px-6 py-4 font-semibold text-red-500">${ui.formatBytes(f.size)}</td>
+                    <td class="px-6 py-4"><span class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">${f.category}</span></td>
+                </tr>
+            `).join('');
+            
+        } catch (error) {
+            tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-red-500">Error loading files</td></tr>`;
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Scheduled Tasks -->
+    <div class="bg-white dark:bg-darkCard rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Background Tasks Schedule</h3>
+        <form id="taskForm" class="space-y-4 mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Task Type</label>
+                <select id="t_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-sm dark:text-white">
+                    <option value="scan">Daily Scan</option>
+                    <option value="organize">Auto Organize</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Directory</label>
+                <input type="text" id="t_dir" required placeholder="C:\Downloads" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-sm dark:text-white">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hour (0-23)</label>
+                    <input type="number" id="t_hour" min="0" max="23" value="02" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-sm dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Minute (0-59)</label>
+                    <input type="number" id="t_minute" min="0" max="59" value="00" required class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-sm dark:text-white">
+                </div>
+            </div>
+            <button type="submit" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded shadow-sm font-medium transition">
+                Create Schedule
+            </button>
+        </form>
+
+        <h4 class="font-medium text-gray-900 dark:text-white mb-3">Active Schedules</h4>
+        <div id="tasksList" class="space-y-3">
+            <!-- JS populated -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('pageTitle').textContent = 'Settings & Schedules';
+        loadTasks();
+    });
+
+    document.getElementById('taskForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            task_type: document.getElementById('t_type').value,
+            target_directory: document.getElementById('t_dir').value,
+            cron_hour: document.getElementById('t_hour').value,
+            cron_minute: document.getElementById('t_minute').value
+        };
+
+        try {
+            await api.post('/scheduler/tasks', data);
+            ui.showToast('Schedule created!', 'success');
+            loadTasks();
+        } catch (e) {
+            ui.showToast('Failed to create schedule.', 'error');
+        }
+    });
+
+    async function loadTasks() {
+        const list = document.getElementById('tasksList');
+        try {
+            const tasks = await api.get('/scheduler/tasks');
+            if(tasks.length === 0){
+                list.innerHTML = '<p class="text-sm text-gray-500">No scheduled tasks.</p>';
+                return;
+            }
+
+            list.innerHTML = tasks.map(t => `
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
+                    <div>
+                        <p class="font-medium text-sm text-gray-900 dark:text-white capitalize">${t.task_type} Action</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Runs daily at ${t.schedule} | Target: ${t.target_directory}</p>
+                    </div>
+                    <button onclick="deleteTask(${t.id})" class="text-red-500 hover:text-red-700 text-sm"><i class="fas fa-trash"></i></button>
+                </div>
+            `).join('');
+        } catch (e) {
+            list.innerHTML = '<p class="text-sm text-red-500">Failed to load tasks.</p>';
+        }
+    }
+
+    async function deleteTask(id) {
+        if(!confirm('Delete this scheduled task?')) return;
+        try {
+            await api.delete(`/scheduler/tasks/${id}`);
+            ui.showToast('Task deleted.', 'success');
+            loadTasks();
+        } catch (e) {
+            ui.showToast('Failed to delete.', 'error');
+        }
+    }
+</script>
+{% endblock %}

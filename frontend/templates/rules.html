@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+    <!-- Rule Form -->
+    <div class="lg:col-span-1 bg-white dark:bg-darkCard rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 h-fit">
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">Create Rule</h3>
+        <form id="ruleForm" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Rule Name</label>
+                <input type="text" id="r_name" required placeholder="e.g., Photos to D Drive"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-sm dark:text-white">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Condition Type</label>
+                <select id="r_type" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-sm dark:text-white">
+                    <option value="extension">File Extension (e.g., .jpg)</option>
+                    <option value="name_contains">Name Contains (e.g., invoice)</option>
+                    <option value="size_gt">Size Greater Than (Bytes)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Condition Value</label>
+                <input type="text" id="r_value" required placeholder="e.g., .jpg"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-sm dark:text-white">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Folder Path</label>
+                <input type="text" id="r_target" required placeholder="C:\Photos"
+                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-sm dark:text-white">
+            </div>
+
+            <button type="submit" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded shadow-sm font-medium transition">
+                Add Rule
+            </button>
+        </form>
+    </div>
+
+    <!-- Rule List -->
+    <div class="lg:col-span-2 bg-white dark:bg-darkCard rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-gray-900 dark:text-white">Active Rules</h3>
+            <button onclick="loadRules()" class="text-gray-500 hover:text-indigo-600"><i class="fas fa-sync"></i></button>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700/50 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700">
+                    <tr>
+                        <th class="px-4 py-3">Name</th>
+                        <th class="px-4 py-3">Condition</th>
+                        <th class="px-4 py-3">Value</th>
+                        <th class="px-4 py-3">Target Folder</th>
+                        <th class="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="rulesBody">
+                    <!-- JS loaded -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('pageTitle').textContent = 'Custom Rules';
+        loadRules();
+    });
+
+    document.getElementById('ruleForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            name: document.getElementById('r_name').value,
+            condition_type: document.getElementById('r_type').value,
+            condition_value: document.getElementById('r_value').value,
+            target_folder: document.getElementById('r_target').value
+        };
+
+        try {
+            await api.post('/organizer/rules', data);
+            ui.showToast('Rule added successfully', 'success');
+            document.getElementById('ruleForm').reset();
+            loadRules();
+        } catch (error) {
+            ui.showToast('Failed to add rule', 'error');
+        }
+    });
+
+    async function loadRules() {
+        const tbody = document.getElementById('rulesBody');
+        try {
+            const rules = await api.get('/organizer/rules');
+            if(rules.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-6 text-center">No rules configured.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = rules.map(r => `
+                <tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                    <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">${r.name}</td>
+                    <td class="px-4 py-3"><span class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">${r.condition_type}</span></td>
+                    <td class="px-4 py-3 font-mono text-xs">${r.condition_value}</td>
+                    <td class="px-4 py-3 truncate max-w-[150px]" title="${r.target_folder}">${r.target_folder}</td>
+                    <td class="px-4 py-3 text-right">
+                        <button onclick="deleteRule(${r.id})" class="text-red-500 hover:text-red-700 p-1"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-4 text-center text-red-500">Error loading rules</td></tr>`;
+        }
+    }
+
+    async function deleteRule(id) {
+        if(!confirm('Delete this rule?')) return;
+        try {
+            await api.delete(`/organizer/rules/${id}`);
+            ui.showToast('Rule deleted', 'success');
+            loadRules();
+        } catch (e) {
+            ui.showToast('Failed to delete', 'error');
+        }
+    }
+</script>
+{% endblock %}

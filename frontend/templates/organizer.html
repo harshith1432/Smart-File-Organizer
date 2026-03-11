@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+    
+    <div class="flex flex-col md:flex-row gap-6">
+        <!-- Auto Organizer Card -->
+        <div class="flex-1 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl shadow-lg p-6 text-white relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-10 opacity-10">
+                <i class="fas fa-magic text-9xl"></i>
+            </div>
+            <div class="relative z-10">
+                <h3 class="text-2xl font-bold mb-2">Auto-Organize</h3>
+                <p class="text-blue-100 mb-6 h-12">Intelligently move files into category folders (Images, Videos, Documents, etc.) based on our smart detection.</p>
+                
+                <button id="autoOrganizeBtn" class="w-full bg-white text-indigo-700 hover:bg-gray-50 font-bold py-3 px-4 rounded-lg shadow transition-all transform hover:-translate-y-1 flex items-center justify-center space-x-2">
+                    <i class="fas fa-play"></i>
+                    <span>Run Auto-Organizer</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Custom Rules Card -->
+        <div class="flex-1 bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl shadow-lg p-6 text-white relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-10 opacity-10">
+                <i class="fas fa-cogs text-9xl"></i>
+            </div>
+            <div class="relative z-10">
+                <h3 class="text-2xl font-bold mb-2">Custom Rules</h3>
+                <p class="text-purple-100 mb-6 h-12">Apply your active custom rules to move files exactly where you want them based on extension, size, or name.</p>
+                
+                <div class="flex space-x-3">
+                    <button id="applyRulesBtn" class="flex-1 bg-white text-purple-700 hover:bg-gray-50 font-bold py-3 px-4 rounded-lg shadow transition-all transform hover:-translate-y-1 flex items-center justify-center space-x-2">
+                        <i class="fas fa-filter"></i>
+                        <span>Apply Rules</span>
+                    </button>
+                    <a href="/rules" class="bg-purple-800 bg-opacity-40 hover:bg-opacity-60 text-white font-bold py-3 px-4 rounded-lg outline outline-1 outline-white/30 transition-colors flex items-center justify-center">
+                        <i class="fas fa-edit"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Undo Actions -->
+    <div class="bg-white dark:bg-darkCard rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Mistake? No problem.</h3>
+                <p class="text-gray-500 dark:text-gray-400 text-sm">You can undo the last set of file movements and restore files to their original scanned locations.</p>
+            </div>
+            <button id="undoBtn" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium rounded-lg transition-colors flex items-center space-x-2">
+                <i class="fas fa-undo"></i>
+                <span>Undo All Moves</span>
+            </button>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('pageTitle').textContent = 'File Organizer';
+    });
+
+    document.getElementById('autoOrganizeBtn').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const originalHtml = btn.innerHTML;
+        
+        if(!confirm("This will move scanned files into categorized folders. Proceed?")) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Organizing...</span>';
+
+        try {
+            const res = await api.post('/organizer/auto', {});
+            ui.showToast(`Successfully moved ${res.moved_count} files!`, 'success');
+            if (res.errors && res.errors.length > 0) {
+                console.warn('Organization errors:', res.errors);
+            }
+        } catch (error) {
+            ui.showToast(error.message || 'Auto-organize failed', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    });
+
+    document.getElementById('applyRulesBtn').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const originalHtml = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Applying...</span>';
+
+        try {
+            const res = await api.post('/organizer/apply-rules', {});
+            ui.showToast(`Successfully moved ${res.moved_count} files using custom rules.`, 'success');
+        } catch (error) {
+            ui.showToast(error.message || 'Apply rules failed', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    });
+
+    document.getElementById('undoBtn').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        const originalHtml = btn.innerHTML;
+
+        if(!confirm("This will attempt to move ALL organized files back to their original scanned locations. Are you sure?")) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Undoing...</span>';
+
+        try {
+            const res = await api.post('/organizer/undo', {});
+            ui.showToast(`Restored ${res.restored_count} files.`, 'success');
+        } catch (error) {
+            ui.showToast(error.message || 'Undo failed', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    });
+</script>
+{% endblock %}
